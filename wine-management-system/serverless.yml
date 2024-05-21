@@ -1,0 +1,81 @@
+service: wine-management-system
+
+frameworkVersion: "3"
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  region: us-east-1
+  environment:
+    BOTTLE_TABLE: ${self:service}-bottle
+    UPLOAD_BUCKET: ${self:service}-uploads
+
+plugins:
+  - serverless-offline
+  - serverless-localstack
+
+custom:
+  localstack:
+    stages:
+      - local
+
+functions:
+  createBottle:
+    handler: handler.createBottle
+    events:
+      - http:
+          path: /bottle
+          method: post
+          cors: true
+
+  getBottles:
+    handler: handler.getBottles
+    events:
+      - http:
+          path: /bottles
+          method: get
+          cors: true
+
+  getBottle:
+    handler: handler.getBottle
+    events:
+      - http:
+          path: /bottle/{id}
+          method: get
+          cors: true
+
+  updateBottle:
+    handler: handler.updateBottle
+    events:
+      - http:
+          path: /bottle/{id}
+          method: put
+          cors: true
+
+  deleteBottle:
+    handler: handler.deleteBottle
+    events:
+      - http:
+          path: /bottle/{id}
+          method: delete
+          cors: true
+
+resources:
+  Resources:
+    EventsDynanoDBTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:provider.environment.BOTTLE_TABLE}
+        AttributeDefinitions:
+          - AttributeName: id
+            AttributeType: S
+        KeySchema:
+          - AttributeName: id
+            KeyType: HASH
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+  UploadsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: ${self:provider.environment.UPLOAD_BUCKET}
