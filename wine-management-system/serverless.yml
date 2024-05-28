@@ -9,15 +9,29 @@ provider:
   environment:
     BOTTLE_TABLE: ${self:service}-bottle
     UPLOAD_BUCKET: ${self:service}-uploads
+    JWT_SECRET: bestSecretKey
+    ADMIN_EMAIL: testemail@mail.com
+    SOURCE_EMAIL: wine-management-system@local.com
+    SNS_TOPIC_ARN: arn:aws:sns:us-east-1:123456789012:wine-management-sns-topic
+    USERS_TABLE: ${self:service}-users
+    EVENTS_TABLE: ${self:service}-events
 
 plugins:
   - serverless-offline
   - serverless-localstack
+  - serverless-offline-ses-v2
 
 custom:
   localstack:
     stages:
       - local
+
+  serverless-offline-ses-v2:
+    endpoint: http://localhost:4566
+    region: us-east-1
+    start:
+      port: 9001
+      mock: true
 
 functions:
   createBottle:
@@ -60,6 +74,47 @@ functions:
           method: delete
           cors: true
 
+  getAllEvents:
+    handler: handler.getAllEvents
+    events:
+      - http:
+          path: /events
+          method: get
+          cors: true
+
+  getToken:
+    handler: handler.getToken
+    events:
+      - http:
+          path: /token
+          method: post
+          cors: true
+
+  createUser:
+    handler: handler.createUser
+    events:
+      - http:
+          path: /user
+          method: post
+          cors: true
+
+  logEvent:
+    handler: handler.logEvent
+
+  sendEmail:
+    handler: handler.sendEmail
+
+  sendSnsNotification:
+    handler: handler.sendSnsNotification
+
+  scheduledEvent:
+    handler: handler.scheduledEvent
+    events:
+      - schedule:
+          rate: rate(1 minute)
+          name: dailyWineManagementEvent
+          description: "Daily scheduled event for the wine management system"
+
 resources:
   Resources:
     EventsDynanoDBTable:
@@ -75,7 +130,21 @@ resources:
         ProvisionedThroughput:
           ReadCapacityUnits: 1
           WriteCapacityUnits: 1
-  UploadsBucket:
-    Type: AWS::S3::Bucket
-    Properties:
-      BucketName: ${self:provider.environment.UPLOAD_BUCKET}
+
+    UploadsBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: ${self:provider.environment.UPLOAD_BUCKET}
+
+    SNSTopic:
+      Type: AWS::SNS::Topic
+      Properties:
+        TopicName: wine-management-sns-topic
+
+    SnsSubscription:
+      Type: AWS::SNS::Subscription
+      Properties:
+        TopicArn: ${self:provider.environment.SNS_TOPIC_ARN}
+        Protocol: email
+        Endpoint: ${self:provider.environment.ADMIN_EMAIL}
+

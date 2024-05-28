@@ -11,8 +11,15 @@
   "license": "ISC",
   "dependencies": {
     "aws-sdk": "^2.1624.0",
+    "aws-ses-v2-local": "^2.4.0",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "jsonwebtoken": "^9.0.2",
     "localstack": "^1.0.0",
     "serverless-localstack": "^1.2.0",
     "serverless-offline": "^13.5.1"
+  },
+  "devDependencies": {
+    "serverless-offline-ses-v2": "^1.0.4"
   }
 }
