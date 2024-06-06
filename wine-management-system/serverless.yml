@@ -1,20 +1,45 @@
 service: wine-management-system
-
 frameworkVersion: "3"
 
 provider:
   name: aws
   runtime: nodejs18.x
   region: us-east-1
+  endpoint: http://localhost:4566
+  sns:
+    endpoint: http://localhost:4566
+
   environment:
     BOTTLE_TABLE: ${self:service}-bottle
+    USERS_TABLE: ${self:service}-users
+    EVENTS_TABLE: ${self:service}-events
     UPLOAD_BUCKET: ${self:service}-uploads
     JWT_SECRET: bestSecretKey
     ADMIN_EMAIL: testemail@mail.com
     SOURCE_EMAIL: wine-management-system@local.com
-    SNS_TOPIC_ARN: arn:aws:sns:us-east-1:123456789012:wine-management-sns-topic
-    USERS_TABLE: ${self:service}-users
-    EVENTS_TABLE: ${self:service}-events
+    SNS_TOPIC_ARN: arn:aws:sns:us-east-1:000000000000:wine-management-system-topic
+
+
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - dynamodb:PutItem
+        - dynamodb:GetItem
+        - dynamodb:Scan
+        - dynamodb:UpdateItem
+        - dynamodb:DeleteItem
+        - dynamodb:DescribeStream
+        - dynamodb:GetRecords
+        - dynamodb:GetShardIterator
+      Resource: "arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.BOTTLE_TABLE}"
+    - Effect: Allow
+      Action:
+        - ses:SendEmail
+      Resource: "*"
+    - Effect: Allow
+      Action:
+        - sns:Publish
+      Resource: ${self:provider.environment.SNS_TOPIC_ARN}
 
 plugins:
   - serverless-offline
@@ -98,29 +123,47 @@ functions:
           method: post
           cors: true
 
-  logEvent:
-    handler: handler.logEvent
-
-  sendEmail:
-    handler: handler.sendEmail
+  SnsLogMessage:
+    handler: handler.SnsLogMessage
+    events:
+      - sns:
+          topicName: wine-management-sns-topic
 
   sendSnsNotification:
     handler: handler.sendSnsNotification
+
+  logTableChanges:
+    handler: handler.logTableChanges
+    events:
+      - stream:
+          type: dynamodb
+          arn:
+            Fn::GetAtt:
+              - WineManagementSystemBottleTable
+              - StreamArn
 
   scheduledEvent:
     handler: handler.scheduledEvent
     events:
       - schedule:
-          rate: rate(1 minute)
+          rate: rate(15 minute)
           name: dailyWineManagementEvent
           description: "Daily scheduled event for the wine management system"
 
+  logS3Event:
+    handler: handler.logS3Event
+    events:
+      - s3:
+          bucket: wine-management-system-uploads
+          event: s3:ObjectCreated:*
+
 resources:
   Resources:
-    EventsDynanoDBTable:
+  
+    WineManagementSystemBottleTable:
       Type: AWS::DynamoDB::Table
       Properties:
-        TableName: ${self:provider.environment.BOTTLE_TABLE}
+        TableName: wine-management-system-bottle
         AttributeDefinitions:
           - AttributeName: id
             AttributeType: S
@@ -130,16 +173,18 @@ resources:
         ProvisionedThroughput:
           ReadCapacityUnits: 1
           WriteCapacityUnits: 1
+        StreamSpecification:
+          StreamViewType: NEW_AND_OLD_IMAGES
 
-    UploadsBucket:
+    WineManagementSystemUploadsBucket:
       Type: AWS::S3::Bucket
       Properties:
-        BucketName: ${self:provider.environment.UPLOAD_BUCKET}
+        BucketName: wine-management-system-uploads
 
-    SNSTopic:
+    WineManagementSystemTopic:
       Type: AWS::SNS::Topic
       Properties:
-        TopicName: wine-management-sns-topic
+        TopicName: wine-management-system-topic
 
     SnsSubscription:
       Type: AWS::SNS::Subscription
